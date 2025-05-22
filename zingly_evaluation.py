@@ -189,32 +189,39 @@ if api_key:
                     df["model_drifting_score"] = drifting
                     df["fact_checking_score"] = checking
 
+                    mae = rmse = acc_exact = acc_plus1 = corr = None
                     if "human_score" in df.columns:
-                        df["human_score_clean"] = df["human_score"].astype(str).str.extract(r"^(\d)").astype(float)
-                        valid = df.dropna(subset=["gpt_score", "human_score_clean"])
-                        if not valid.empty:
-                            from sklearn.metrics import mean_absolute_error, mean_squared_error
-                            from scipy.stats import pearsonr
-                            import numpy as np
+                        try:
+                            df["human_score_clean"] = df["human_score"].astype(str).str.extract(r"^(\d)").astype(float)
+                            valid = df.dropna(subset=["gpt_score", "human_score_clean"])
+                            if not valid.empty:
+                                from sklearn.metrics import mean_absolute_error, mean_squared_error
+                                from scipy.stats import pearsonr
+                                import numpy as np
 
-                            human = valid["human_score_clean"]
-                            pred = df.loc[valid.index, "gpt_score"]
+                                human = valid["human_score_clean"]
+                                pred = df.loc[valid.index, "gpt_score"]
 
-                            mae = mean_absolute_error(human, pred)
-                            rmse = mean_squared_error(human, pred, squared=False)
-                            acc_exact = (human == pred).mean()
-                            acc_plus1 = (abs(human - pred) <= 1).mean()
-                            corr = pearsonr(human, pred)[0]
+                                mae = mean_absolute_error(human, pred)
+                                rmse = np.sqrt(mean_squared_error(human, pred))
+                                acc_exact = (human == pred).mean()
+                                acc_plus1 = (abs(human - pred) <= 1).mean()
+                                corr = pearsonr(human, pred)[0]
+                        except Exception as e:
+                            st.warning(f"⚠️ Metric calculation failed: {e}")
 
                     st.success("✅ Evaluation complete!")
                     st.dataframe(df)
 
                     st.subheader("📊 Evaluation Metrics vs Human Score")
-                    st.markdown(f"- **MAE:** {mae:.3f}")
-                    st.markdown(f"- **RMSE:** {rmse:.3f}")
-                    st.markdown(f"- **Accuracy@1:** {acc_exact:.1%}")
-                    st.markdown(f"- **Accuracy@±1:** {acc_plus1:.1%}")
-                    st.markdown(f"- **Correlation:** {corr:.3f}")
+                    if mae is not None:
+                        st.markdown(f"- **MAE:** {mae:.3f}")
+                        st.markdown(f"- **RMSE:** {rmse:.3f}")
+                        st.markdown(f"- **Accuracy@1:** {acc_exact:.1%}")
+                        st.markdown(f"- **Accuracy@±1:** {acc_plus1:.1%}")
+                        st.markdown(f"- **Correlation:** {corr:.3f}")
+                    else:
+                        st.markdown("*No valid metrics to display. Check if GPT and human scores are aligned.*")
 
                     st.download_button("📥 Download Results", df.to_csv(index=False), "evaluated_results.csv")
 
